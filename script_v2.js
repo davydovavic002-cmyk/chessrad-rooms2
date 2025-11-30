@@ -1,136 +1,120 @@
-// --- Инициализация ---
-const socket = io();
-const game = new Chess();
-let board = null;
-let playerColor = null;
+$(document).ready(function() {
+    const socket = io();
+    let board = null;
+    let chessGame = new Chess();
+    let playerColor = 'w';
+    let gameId = null;
+    let isGameStarted = false;
 
-// --- Управление элементами интерфейса ---
-const findGameBtn = $('#findGameBtn');
-const statusEl = $('#status');
-const playerColorEl = $('#player-color');
-const boardPlaceholder = $('#board-placeholder');
-const pgnEl = $('#pgn'); // Элемент для истории ходов
+    const $status = $('#status');
+    const $fen = $('#fen');
+    const $pgn = $('#pgn');
+    const $findGameBtn = $('#findGameBtn');
 
-// Показываем заглушку при загрузке страницы
-boardPlaceholder.show();
+    function updateStatus() {
+        let status = '';
+        let moveColor = chessGame.turn() === 'w' ? 'Белых' : 'Черных';
 
-// --- Обработчики событий Socket.IO ---
+        // --- ВОЗВРАЩАЕМ game_over() и in_check() ---
+        if (chessGame.game_over()) {
+            status = 'Игра окончена. ';
+            if (chessGame.in_checkmate()) {
+                status += `Мат. ${moveColor === 'Белых' ? 'Черные' : 'Белые'} победили.`;
+            } else if (chessGame.in_draw()) {
+                status += 'Ничья.';
+            } else if (chessGame.in_stalemate()){
+                status += 'Пат. Ничья.';
+            } else if (chessGame.in_threefold_repetition()){
+                status += 'Ничья (троекратное повторение).';
+            } else if (chessGame.insufficient_material()){
+                status += 'Ничья (недостаточно материала).';
+            }
+        } else {
+            status = `Ход ${moveColor}.`;
+            if (chessGame.in_check()) {
+                status += ` ${moveColor} под шахом.`;
+            }
+        }
 
-// Событие: начало игры
-socket.on('gameStart', (data) => {
-    console.log("Сигнал 'gameStart' получен.", data);
+        $status.html(status);
+        $fen.html(chessGame.fen());
+        $pgn.html(chessGame.pgn());
+    }
 
-    // 1. Получаем цвет
-    playerColor = data.yourColor;
+    function onDragStart(source, piece, position, orientation) {
+        if (!isGameStarted) return false;
 
-    // 2. Обновляем интерфейс
-    playerColorEl.text(playerColor === 'w' ? 'Белые' : 'Черные');
-    boardPlaceholder.hide(); // Прячем заглушку
-    findGameBtn.prop('disabled', true); // Блокируем кнопку
+        // --- И ЗДЕСЬ ТОЖЕ game_over() ---
+        if (chessGame.game_over() || chessGame.turn() !== playerColor) {
+            return false;
+        }
 
-    // 3. Создаем доску
-    const config = {
+        if (piece.search(new RegExp(`^${playerColor === 'w' ? 'b' : 'w'}`)) !== -1) {
+            return false;
+        }
+    }
+
+    function onDrop(source, target) {
+        const move = chessGame.move({
+            from: source,
+            to: target,
+            promotion: 'q'
+        });
+
+        if (move === null) return 'snapback';
+
+        socket.emit('move', { gameId: gameId, move: move });
+        updateStatus();
+    }
+
+    function onSnapEnd() {
+        board.position(chessGame.fen());
+    }
+
+    const boardConfig = {
         draggable: true,
         position: 'start',
-        orientation: playerColor === 'w' ? 'white' : 'black',
         onDragStart: onDragStart,
         onDrop: onDrop,
-        onSnapEnd: onSnapEnd
+        onSnapEnd: onSnapEnd,
+        pieceTheme: 'img/chesspieces/wikipedia/{piece}.png'
     };
-    board = Chessboard('myBoard', config);
 
-    // 4. Загружаем состояние игры
-    game.load(data.fen);
-    updateStatus();
-});
+    board = Chessboard('myBoard', boardConfig);
 
-// Событие: ход сделан (обновление от сервера)
-socket.on('updateGame', (data) => {
-    game.load(data.fen);
-    board.position(data.fen);
-    updateStatus();
-});
-
-// Событие: конец игры
-socket.on('gameEnd', (message) => {
-    statusEl.html(message);
-    findGameBtn.prop('disabled', false);
-});
-
-// --- Логика шахматной доски (Chessboard.js + Chess.js) ---
-
-function onDragStart(source, piece) {
-    // Нельзя тащить фигуры, если игра закончена
-    if (game.game_over()) return false;
-
-    // Нельзя тащить чужие фигуры или если не твой ход
-    if ((game.turn() === 'w' && playerColor !== 'w') ||
-        (game.turn() === 'b' && playerColor !== 'b')) {
-        return false;
-    }
-
-    // Нельзя тащить фигуры соперника
-    if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-        (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-        return false;
-    }
-}
-
-function onDrop(source, target) {
-    // Пробуем сделать ход в логике
-    const move = game.move({
-        from: source,
-        to: target,
-        promotion: 'q' // Всегда превращаем в ферзя для простоты
+    $findGameBtn.on('click', function() {
+        $(this).prop('disabled', true).text('Поиск соперника...');
+        socket.emit('findGame');
+        $status.text('Ищем игру для вас...');
     });
 
-    // Если ход невозможен - возвращаем фигуру назад
-    if (move === null) return 'snapback';
+    socket.on('gameStart', function(data) {
+        gameId = data.gameId;
+        playerColor = data.color;
+        isGameStarted = true;
+        chessGame = new Chess();
 
-    // Если возможен - отправляем на сервер
-    socket.emit('move', {
-        from: source,
-        to: target,
-        promotion: 'q'
+        board.orientation(playerColor === 'w' ? 'white' : 'black');
+        board.position(chessGame.fen());
+        $findGameBtn.hide();
+
+        const playerColorText = playerColor === 'w' ? 'Белыми' : 'Черными';
+        $status.html(`Игра началась! Вы играете ${playerColorText}.`);
+        updateStatus();
     });
-}
 
-function onSnapEnd() {
-    board.position(game.fen());
-}
+    socket.on('move', function(move) {
+        chessGame.move(move);
+        board.position(chessGame.fen());
+        updateStatus();
+    });
 
-// --- Обновление статуса и истории ---
+    socket.on('gameOver', function(data) {
+        isGameStarted = false;
+        $status.text(data.message);
+        $findGameBtn.prop('disabled', false).text('Найти новую игру').show();
+        updateStatus();
+    });
 
-function updateStatus() {
-    let status = '';
-    const moveColor = game.turn() === 'w' ? 'Белых' : 'Черных';
-
-    if (game.game_over()) {
-        if (game.in_checkmate()) {
-            status = 'Игра окончена, ' + moveColor + ' получили мат.';
-        } else if (game.in_draw()) {
-            status = 'Игра окончена, ничья.';
-        } else {
-            status = 'Игра окончена.';
-        }
-    } else {
-        status = 'Ход ' + moveColor;
-        if (game.in_check()) {
-            status += ', ' + moveColor + ' под шахом';
-        }
-    }
-
-    // Обновляем текст статуса
-    statusEl.html(status);
-
-    // ИСПРАВЛЕНО: форматируем PGN для красивого вывода в одну строку
-    pgnEl.text(game.pgn({ max_width: 5, newline_char: ' ' }));
-}
-
-// --- Обработчик кнопки ---
-
-findGameBtn.on('click', () => {
-    statusEl.text('Поиск соперника...');
-    socket.emit('findGame');
-    findGameBtn.prop('disabled', true);
+    updateStatus();
 });
