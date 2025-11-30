@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Онлайн Шахматы</title>
+
+    <link rel="stylesheet" href="css/chessboard-1.0.0.min.css?v=1.9">
+
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: flex-start; padding-top: 20px; background-color: #f0f0f0; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        #myBoard { width: 400px; }
+        .info-panel { width: 300px; background: #fff; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .info-panel h3 { margin-top: 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        pre { background: #eee; padding: 10px; border: 1px solid #999; white-space: pre-wrap; word-wrap: break-word; }
+        #findGameBtn { width: 100%; padding: 10px; font-size: 16px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 4px; margin-bottom: 15px; }
+        #findGameBtn:disabled { background-color: #cccccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="myBoard"></div>
+    <div class="info-panel">
+        <button id="findGameBtn">Найти игру</button>
+        <h3>Статус игры</h3>
+        <p id="status">Нажмите "Найти игру", чтобы начать.</p>
+        <h3>FEN</h3>
+        <pre id="fen"></pre>
+        <h3>PGN</h3>
+        <pre id="pgn" style="height: 200px; overflow-y: scroll;"></pre>
+    </div>
+</div>
+
+<!-- Загружаем все скрипты с нашего сервера, чтобы избежать проблем с блокировками -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="js/jquery-3.4.1.min.js"></script>
+<script src="js/chess.min.js"></script>
+<script src="js/chessboard-1.0.0.min.js?v=1.9"></script>
+<script src="js/script_v2.js?v=1.9"></script>
+
+</body>
+</html>
