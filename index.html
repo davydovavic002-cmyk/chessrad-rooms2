@@ -5,40 +5,155 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Онлайн Шахматы</title>
 
-    <link rel="stylesheet" href="css/chessboard-1.0.0.min.css?v=1.9">
+    <!-- Стили для шахматной доски -->
+    <link rel="stylesheet" href="/css/chessboard-1.0.0.min.css">
 
+    <!-- Основные стили страницы -->
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: flex-start; padding-top: 20px; background-color: #f0f0f0; }
-        .container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
-        #myBoard { width: 400px; }
-        .info-panel { width: 300px; background: #fff; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .info-panel h3 { margin-top: 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-        pre { background: #eee; padding: 10px; border: 1px solid #999; white-space: pre-wrap; word-wrap: break-word; }
-        #findGameBtn { width: 100%; padding: 10px; font-size: 16px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 4px; margin-bottom: 15px; }
-        #findGameBtn:disabled { background-color: #cccccc; cursor: not-allowed; }
+        /* Обнуляем отступы по умолчанию и добавляем box-sizing */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 20px;
+            background-color: #f0f0f0;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Контейнер для доски */
+        #myBoard {
+            width: 400px;
+        }
+
+        /* Информационная панель справа */
+        .info-panel {
+            width: 300px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-panel h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        /* Блок для FEN и PGN */
+        pre {
+            background: #eee;
+            padding: 10px;
+            border: 1px solid #999;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Контейнеры для кнопок */
+        .controls {
+            margin-bottom: 15px;
+        }
+
+        /* Общие стили для кнопок */
+        .controls button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            margin-top: 5px; /* Небольшой отступ между кнопками */
+            color: white;
+        }
+
+        .controls button:disabled {
+            background-color: #cccccc !important; /* Важно, чтобы перебить другие стили */
+            cursor: not-allowed;
+        }
+
+        /* Стили для конкретных кнопок */
+        #findGameBtn {
+            background-color: #4CAF50; /* Зеленый */
+        }
+
+        #resignBtn {
+            background-color: #f44336; /* Красный */
+        }
+
+        #rematchBtn {
+            background-color: #2196F3; /* Синий */
+        }
+
+        /* Стиль для мигающей кнопки реванша */
+        .glowing-button {
+            animation: glowing 1.5s infinite;
+        }
+
+        @keyframes glowing {
+            0% { box-shadow: 0 0 3px #2196F3; }
+            50% { box-shadow: 0 0 10px #2196F3, 0 0 15px #2196F3; }
+            100% { box-shadow: 0 0 3px #2196F3; }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <!-- Элемент, в который будет встроена шахматная доска -->
     <div id="myBoard"></div>
+
+    <!-- Информационная панель с кнопками и статусом -->
     <div class="info-panel">
-        <button id="findGameBtn">Найти игру</button>
+
+        <!-- Контейнер для кнопки поиска, управляется через #searchControls -->
+        <div id="searchControls" class="controls">
+            <!-- ИСПРАВЛЕНО: ID кнопки теперь "findGameBtn", чтобы соответствовать JS -->
+            <button id="findGameBtn">Найти игру</button>
+        </div>
+
+        <!-- Контейнер для кнопок во время игры, изначально скрыт -->
+        <div id="gameControls" class="controls" style="display: none;">
+            <button id="resignBtn">Сдаться</button>
+            <button id="rematchBtn" style="display: none;">Реванш</button>
+        </div>
+
         <h3>Статус игры</h3>
-        <p id="status">Нажмите "Найти игру", чтобы начать.</p>
+        <p id="status">Нажмите "Найти игру", чтобы начать</p>
+
         <h3>FEN</h3>
-        <pre id="fen"></pre>
+        <pre id="fen">-</pre>
+
         <h3>PGN</h3>
-        <pre id="pgn" style="height: 200px; overflow-y: scroll;"></pre>
+        <pre id="pgn" style="height: 150px; overflow-y: auto;">-</pre>
     </div>
 </div>
 
-<!-- Загружаем все скрипты с нашего сервера, чтобы избежать проблем с блокировками -->
+<!-- Подключение скриптов. Порядок очень важен! -->
+<!-- 1. jQuery -->
+<script src="/js/jquery-3.4.1.min.js"></script>
+<!-- 2. Socket.IO -->
 <script src="/socket.io/socket.io.js"></script>
-<script src="js/jquery-3.4.1.min.js"></script>
-<script src="js/chess.min.js"></script>
-<script src="js/chessboard-1.0.0.min.js?v=1.9"></script>
-<script src="js/script_v2.js?v=1.9"></script>
+<!-- 3. Chessboard.js (визуализация доски) -->
+<script src="/js/chessboard-1.0.0.min.js"></script>
+<!-- 4. Chess.js (логика шахмат) -->
+<!-- ИСПРАВЛЕНО: добавлена закрывающая скобка > -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.2/chess.min.js"></script>
+<!-- 5. Ваш основной скрипт -->
+<script src="/js/script_v2.js"></script>
 
 </body>
 </html>
